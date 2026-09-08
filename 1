@@ -163,7 +163,6 @@ local function getAllEntityPositions()
     local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
     if not myHrp then return entityPositions end
 
-    -- Senin bulunduğun en yakın katmanı hesapla (27, -6, -60)
     local myLayer = getClosestLayer(myHrp.Position.Y)
 
     for _, descendant in ipairs(workspace:GetDescendants()) do
@@ -172,7 +171,6 @@ local function getAllEntityPositions()
             if char and char ~= myChar then
                 local hrp = char:FindFirstChild("HumanoidRootPart")
                 if hrp then
-                    -- Hedef oyuncunun da seninle aynı katmanda olup olmadığını kontrol et
                     local targetLayer = getClosestLayer(hrp.Position.Y)
                     if targetLayer == myLayer and math.abs(hrp.Position.Y - myLayer) <= Y_TOLERANCE then
                         table.insert(entityPositions, hrp.Position)
@@ -190,7 +188,6 @@ local function getDenseClusterCenter()
     local bestCenter = nil
     local maxCount = 0
 
-    -- 20x20 Stud (X: 10, Z: 10) Alan Kontrolü
     for i, pos1 in ipairs(positions) do
         local cluster = {pos1}
         
@@ -199,7 +196,7 @@ local function getDenseClusterCenter()
                 local dx = math.abs(pos1.X - pos2.X)
                 local dz = math.abs(pos1.Z - pos2.Z)
                 
-                if dx <= 10 and dz <= 10 then
+                if dx <= 17 and dz <= 17 then
                     table.insert(cluster, pos2)
                 end
             end
