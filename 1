@@ -5,11 +5,10 @@ local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 local TARGET_ANIM_ID = "71262912144187"
-local TWEEN_SPEED = 1.9
 local autoPosEnabled = false
 
 local LAYERS = {27, -6, -60}
-local Y_TOLERANCE = 12
+local Y_TOLERANCE = 15 
 
 local function getJujutsuFrame()
     for _, gui in ipairs(PlayerGui:GetChildren()) do
@@ -40,15 +39,14 @@ if not mainFrame then
     return
 end
 
--- Varsa eski butonu temizle
 if mainFrame:FindFirstChild("Extension") then
     mainFrame.Extension:Destroy()
 end
 
 local MainFont = Font.new("rbxassetid://12187375716", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-
 mainFrame.ClipsDescendants = false
 
+-- Ana Buton
 local autoPosButton = Instance.new("TextButton")
 autoPosButton.Name = "Extension"
 autoPosButton.Parent = mainFrame
@@ -196,7 +194,7 @@ local function getDenseClusterCenter()
                 local dx = math.abs(pos1.X - pos2.X)
                 local dz = math.abs(pos1.Z - pos2.Z)
                 
-                if dx <= 17 and dz <= 17 then
+                if dx <= 10 and dz <= 10 then
                     table.insert(cluster, pos2)
                 end
             end
@@ -241,7 +239,11 @@ local function teleportAbove(targetPos, track)
     local destination = targetPos + Vector3.new(0, 150, 0)
     local destinationCFrame = CFrame.new(destination)
     
-    local tweenInfo = TweenInfo.new(TWEEN_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local distance = (destination - hrp.Position).Magnitude
+
+    local dynamicSpeed = math.clamp(1.0 + (distance / 120), 1.2, 3.0)
+
+    local tweenInfo = TweenInfo.new(dynamicSpeed, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
     local tween = TweenService:Create(hrp, tweenInfo, {CFrame = destinationCFrame})
     
     tween:Play()
