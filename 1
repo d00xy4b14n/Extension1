@@ -1,0 +1,264 @@
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local TARGET_ANIM_ID = "71262912144187"
+local TWEEN_SPEED = 2
+local autoPosEnabled = false
+
+local function getJujutsuFrame()
+    for _, gui in ipairs(PlayerGui:GetChildren()) do
+        if gui:IsA("ScreenGui") then
+            local frame = gui:FindFirstChild("Frame")
+            if frame and frame:IsA("Frame") then
+                return frame
+            end
+        end
+    end
+    
+    local getHui = gethui or function() return game:GetService("CoreGui") end
+    for _, gui in ipairs(getHui():GetChildren()) do
+        if gui:IsA("ScreenGui") and not gui.Name:lower():find("dex") then
+            local frame = gui:FindFirstChild("Frame")
+            if frame and frame:IsA("Frame") then
+                return frame
+            end
+        end
+    end
+    return nil
+end
+
+local mainFrame = getJujutsuFrame()
+
+if not mainFrame then
+    warn("big boy pls rejoin.")
+    return
+end
+
+-- Varsa eski butonu temizle
+if mainFrame:FindFirstChild("Extension") then
+    mainFrame.Extension:Destroy()
+end
+
+local MainFont = Font.new("rbxassetid://12187375716", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+
+-- Frame Katman Ayarı
+mainFrame.ClipsDescendants = false
+
+-- Ana Buton
+local autoPosButton = Instance.new("TextButton")
+autoPosButton.Name = "Extension"
+autoPosButton.Parent = mainFrame
+autoPosButton.Size = UDim2.new(0, 135, 0, 32)
+autoPosButton.Position = UDim2.new(1, 8, 0, 0)
+autoPosButton.BackgroundColor3 = Color3.fromRGB(38, 38, 38)
+autoPosButton.BorderSizePixel = 0
+autoPosButton.Text = "Uro Auto Pos"
+autoPosButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+autoPosButton.TextSize = 13
+autoPosButton.FontFace = MainFont
+autoPosButton.TextXAlignment = Enum.TextXAlignment.Left
+
+local uiPadding = Instance.new("UIPadding")
+uiPadding.PaddingLeft = UDim.new(0, 10)
+uiPadding.Parent = autoPosButton
+
+local uiCorner = Instance.new("UICorner")
+uiCorner.CornerRadius = UDim.new(0, 6)
+uiCorner.Parent = autoPosButton
+
+local uiStroke = Instance.new("UIStroke")
+uiStroke.Color = Color3.fromRGB(60, 60, 60)
+uiStroke.Thickness = 1
+uiStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+uiStroke.Parent = autoPosButton
+
+local toggleTrack = Instance.new("Frame")
+toggleTrack.Name = "ToggleTrack"
+toggleTrack.Size = UDim2.new(0, 28, 0, 16)
+toggleTrack.Position = UDim2.new(1, -34, 0.5, -8)
+toggleTrack.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+toggleTrack.BorderSizePixel = 0
+toggleTrack.Parent = autoPosButton
+
+local trackCorner = Instance.new("UICorner")
+trackCorner.CornerRadius = UDim.new(1, 0)
+trackCorner.Parent = toggleTrack
+
+local toggleKnob = Instance.new("Frame")
+toggleKnob.Name = "ToggleKnob"
+toggleKnob.Size = UDim2.new(0, 12, 0, 12)
+toggleKnob.Position = UDim2.new(0, 2, 0.5, -6)
+toggleKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+toggleKnob.BorderSizePixel = 0
+toggleKnob.Parent = toggleTrack
+
+local knobCorner = Instance.new("UICorner")
+knobCorner.CornerRadius = UDim.new(1, 0)
+knobCorner.Parent = toggleKnob
+
+local function setToggleState(state)
+    autoPosEnabled = state
+    if autoPosEnabled then
+        TweenService:Create(toggleTrack, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(16, 185, 129)}):Play()
+        TweenService:Create(toggleKnob, TweenInfo.new(0.15), {Position = UDim2.new(1, -14, 0.5, -6)}):Play()
+    else
+        TweenService:Create(toggleTrack, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(60, 60, 60)}):Play()
+        TweenService:Create(toggleKnob, TweenInfo.new(0.15), {Position = UDim2.new(0, 2, 0.5, -6)}):Play()
+    end
+end
+
+autoPosButton.MouseButton1Click:Connect(function()
+    setToggleState(not autoPosEnabled)
+end)
+
+local titleBar = mainFrame:FindFirstChild("TitleBar")
+local minimizeButton = nil
+
+if titleBar then
+    for _, child in ipairs(titleBar:GetChildren()) do
+        if child:IsA("TextButton") and (child.Text == "-" or child.Text == "+") then
+            minimizeButton = child
+            break
+        end
+    end
+end
+
+local function updateButtonVisibility()
+    if minimizeButton and minimizeButton.Text == "+" then
+        autoPosButton.Visible = false
+    else
+        autoPosButton.Visible = true
+    end
+end
+
+if minimizeButton then
+    minimizeButton.MouseButton1Click:Connect(function()
+        task.wait(0.02)
+        updateButtonVisibility()
+    end)
+    
+    minimizeButton:GetPropertyChangedSignal("Text"):Connect(updateButtonVisibility)
+end
+
+local function getAllEntityPositions()
+    local entityPositions = {}
+    local myChar = LocalPlayer.Character
+
+    for _, descendant in ipairs(workspace:GetDescendants()) do
+        if descendant:IsA("Humanoid") and descendant.Health > 0 then
+            local char = descendant.Parent
+            if char and char ~= myChar then
+                local hrp = char:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    table.insert(entityPositions, hrp.Position)
+                end
+            end
+        end
+    end
+
+    return entityPositions
+end
+
+local function getDenseClusterCenter()
+    local positions = getAllEntityPositions()
+    local bestCenter = nil
+    local maxCount = 0
+
+    for i, pos1 in ipairs(positions) do
+        local cluster = {pos1}
+        
+        for j, pos2 in ipairs(positions) do
+            if i ~= j then
+                local dx = math.abs(pos1.X - pos2.X)
+                local dz = math.abs(pos1.Z - pos2.Z)
+                
+                if dx <= 10 and dz <= 10 then
+                    table.insert(cluster, pos2)
+                end
+            end
+        end
+
+        local count = #cluster
+        if count >= 3 and count <= 10 and count > maxCount then
+            maxCount = count
+            local sum = Vector3.zero
+            for _, p in ipairs(cluster) do
+                sum = sum + p
+            end
+            bestCenter = sum / count
+        end
+    end
+
+    if not bestCenter and #positions >= 3 then
+        for i, pos1 in ipairs(positions) do
+            local cluster = {pos1}
+            for j, pos2 in ipairs(positions) do
+                if i ~= j and math.abs(pos1.X - pos2.X) <= 10 and math.abs(pos1.Z - pos2.Z) <= 10 then
+                    table.insert(cluster, pos2)
+                end
+            end
+            if #cluster >= 3 then
+                local sum = Vector3.zero
+                for _, p in ipairs(cluster) do sum = sum + p end
+                bestCenter = sum / #cluster
+                break
+            end
+        end
+    end
+
+    return bestCenter
+end
+
+local function teleportAbove(targetPos, track)
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp or not char then return end
+
+    local destination = targetPos + Vector3.new(0, 150, 0)
+    local destinationCFrame = CFrame.new(destination)
+    
+    local tweenInfo = TweenInfo.new(TWEEN_SPEED, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = destinationCFrame})
+    
+    tween:Play()
+
+    tween.Completed:Connect(function()
+        local holdConnection
+        holdConnection = RunService.Heartbeat:Connect(function()
+            if track and track.IsPlaying and hrp and hrp.Parent then
+                hrp.CFrame = destinationCFrame
+                hrp.AssemblyLinearVelocity = Vector3.zero
+            else
+                if holdConnection then
+                    holdConnection:Disconnect()
+                end
+            end
+        end)
+    end)
+end
+
+local function listenToAnimation(char)
+    local humanoid = char:WaitForChild("Humanoid", 5)
+    local animator = humanoid and humanoid:WaitForChild("Animator", 5)
+    if not animator then return end
+
+    animator.AnimationPlayed:Connect(function(track)
+        if not autoPosEnabled then return end
+
+        if track.Animation and string.find(track.Animation.AnimationId, TARGET_ANIM_ID) then
+            local clusterCenter = getDenseClusterCenter()
+            
+            if clusterCenter then
+                teleportAbove(clusterCenter, track)
+            end
+        end
+    end)
+end
+
+if LocalPlayer.Character then
+    listenToAnimation(LocalPlayer.Character)
+end
+LocalPlayer.CharacterAdded:Connect(listenToAnimation)
