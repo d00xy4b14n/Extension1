@@ -201,7 +201,7 @@ local function getDenseClusterCenter()
         end
 
         local count = #cluster
-        if count >= 3 and count <= 10 and count > maxCount then
+        if count >= 2 and count <= 10 and count > maxCount then
             maxCount = count
             local sum = Vector3.zero
             for _, p in ipairs(cluster) do
