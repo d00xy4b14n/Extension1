@@ -8,6 +8,10 @@ local TARGET_ANIM_ID = "71262912144187"
 local TWEEN_SPEED = 1.5
 local autoPosEnabled = false
 
+-- KATMAN (LAYER) SİSTEMİ TANIMLARI
+local LAYERS = {27, -6, -60}
+local Y_TOLERANCE = 12
+
 local function getJujutsuFrame()
     for _, gui in ipairs(PlayerGui:GetChildren()) do
         if gui:IsA("ScreenGui") then
@@ -44,10 +48,8 @@ end
 
 local MainFont = Font.new("rbxassetid://12187375716", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 
--- Frame Katman Ayarı
 mainFrame.ClipsDescendants = false
 
--- Ana Buton
 local autoPosButton = Instance.new("TextButton")
 autoPosButton.Name = "Extension"
 autoPosButton.Parent = mainFrame
@@ -143,9 +145,27 @@ if minimizeButton then
     minimizeButton:GetPropertyChangedSignal("Text"):Connect(updateButtonVisibility)
 end
 
+local function getClosestLayer(y)
+    local closest = LAYERS[1]
+    local minDiff = math.abs(y - LAYERS[1])
+    for i = 2, #LAYERS do
+        local diff = math.abs(y - LAYERS[i])
+        if diff < minDiff then
+            minDiff = diff
+            closest = LAYERS[i]
+        end
+    end
+    return closest
+end
+
 local function getAllEntityPositions()
     local entityPositions = {}
     local myChar = LocalPlayer.Character
+    local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if not myHrp then return entityPositions end
+
+    -- Senin bulunduğun en yakın katmanı hesapla (27, -6, -60)
+    local myLayer = getClosestLayer(myHrp.Position.Y)
 
     for _, descendant in ipairs(workspace:GetDescendants()) do
         if descendant:IsA("Humanoid") and descendant.Health > 0 then
@@ -153,7 +173,11 @@ local function getAllEntityPositions()
             if char and char ~= myChar then
                 local hrp = char:FindFirstChild("HumanoidRootPart")
                 if hrp then
-                    table.insert(entityPositions, hrp.Position)
+                    -- Hedef oyuncunun da seninle aynı katmanda olup olmadığını kontrol et
+                    local targetLayer = getClosestLayer(hrp.Position.Y)
+                    if targetLayer == myLayer and math.abs(hrp.Position.Y - myLayer) <= Y_TOLERANCE then
+                        table.insert(entityPositions, hrp.Position)
+                    end
                 end
             end
         end
@@ -167,6 +191,7 @@ local function getDenseClusterCenter()
     local bestCenter = nil
     local maxCount = 0
 
+    -- 20x20 Stud (X: 10, Z: 10) Alan Kontrolü
     for i, pos1 in ipairs(positions) do
         local cluster = {pos1}
         
