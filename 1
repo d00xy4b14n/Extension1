@@ -10,15 +10,29 @@ local autoPosEnabled = false
 local LAYERS = {27, -6, -60}
 local Y_TOLERANCE = 15 
 
-local areaBox = Instance.new("BoxHandleAdornment")
-areaBox.Name = "AutoPosAreaBox"
-areaBox.Size = Vector3.new(20, 0.1, 20)
-areaBox.Color3 = Color3.fromRGB(255, 0, 0)
-areaBox.Transparency = 0.6
-areaBox.AlwaysOnTop = true
-areaBox.Adornee = workspace.Terrain
-areaBox.Visible = false
-areaBox.Parent = workspace
+local boxPool = {}
+
+local function getAreaBox(index)
+    if not boxPool[index] then
+        local box = Instance.new("BoxHandleAdornment")
+        box.Name = "AutoPosAreaBox_" .. index
+        box.Size = Vector3.new(40, 0.1, 40) 
+        box.Color3 = Color3.fromRGB(255, 0, 0)
+        box.Transparency = 0.6
+        box.AlwaysOnTop = true
+        box.Adornee = workspace.Terrain
+        box.Visible = false
+        box.Parent = workspace
+        boxPool[index] = box
+    end
+    return boxPool[index]
+end
+
+local function hideAllBoxes()
+    for _, box in ipairs(boxPool) do
+        box.Visible = false
+    end
+end
 
 local function getJujutsuFrame()
     for _, gui in ipairs(PlayerGui:GetChildren()) do
@@ -115,7 +129,7 @@ local function setToggleState(state)
     else
         TweenService:Create(toggleTrack, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(60, 60, 60)}):Play()
         TweenService:Create(toggleKnob, TweenInfo.new(0.15), {Position = UDim2.new(0, 2, 0.5, -6)}):Play()
-        areaBox.Visible = false
+        hideAllBoxes()
     end
 end
 
@@ -202,10 +216,10 @@ local function getAllEntityPositions()
     return entityPositions
 end
 
-local function getDenseClusterData()
+local function getAllClustersData()
     local positions = getAllEntityPositions()
-    local bestCluster = {}
-    local maxCount = 0
+    local validClusters = {}
+    local validCenters = {}
 
     for i, pos1 in ipairs(positions) do
         local cluster = {pos1}
@@ -215,7 +229,7 @@ local function getDenseClusterData()
                 local dx = math.abs(pos1.X - pos2.X)
                 local dz = math.abs(pos1.Z - pos2.Z)
                 
-                if dx <= 10 and dz <= 10 then
+                if dx <= 20 and dz <= 20 then
                     table.insert(cluster, pos2)
                 end
             end
@@ -234,36 +248,50 @@ local function getDenseClusterData()
 
         local count = #cluster
 
-        if count >= 2 and count <= 10 and count > maxCount then
-            maxCount = count
-            bestCluster = cluster
+        if count >= 3 and count <= 10 then
+            local sum = Vector3.zero
+            for _, p in ipairs(cluster) do
+                sum = sum + p
+            end
+            local center = sum / count
+
+            local isDuplicate = false
+            for _, existingCenter in ipairs(validCenters) do
+                if (existingCenter - center).Magnitude < 20 then
+                    isDuplicate = true
+                    break
+                end
+            end
+
+            if not isDuplicate then
+                table.insert(validClusters, cluster)
+                table.insert(validCenters, center)
+            end
         end
     end
 
-    local center = nil
-    if #bestCluster > 0 then
-        local sum = Vector3.zero
-        for _, p in ipairs(bestCluster) do
-            sum = sum + p
-        end
-        center = sum / #bestCluster
-    end
-
-    return bestCluster, center
+    return validClusters, validCenters
 end
 
 task.spawn(function()
     while true do
         if autoPosEnabled then
-            local _, center = getDenseClusterData()
-            if center then
-                areaBox.CFrame = CFrame.new(center)
-                areaBox.Visible = true
+            local _, centers = getAllClustersData()
+            
+            if #centers > 0 then
+                for i, center in ipairs(centers) do
+                    local box = getAreaBox(i)
+                    box.CFrame = CFrame.new(center)
+                    box.Visible = true
+                end
+                for i = #centers + 1, #boxPool do
+                    boxPool[i].Visible = false
+                end
             else
-                areaBox.Visible = false
+                hideAllBoxes()
             end
         else
-            areaBox.Visible = false
+            hideAllBoxes()
         end
         task.wait(0.05)
     end
@@ -309,10 +337,24 @@ local function listenToAnimation(char)
         if not autoPosEnabled then return end
 
         if track.Animation and string.find(track.Animation.AnimationId, TARGET_ANIM_ID) then
-            local _, clusterCenter = getDenseClusterData()
+            local _, centers = getAllClustersData()
             
-            if clusterCenter then
-                teleportAbove(clusterCenter, track)
+            if #centers > 0 then
+                local myHrp = char:FindFirstChild("HumanoidRootPart")
+                local closestCenter = centers[1]
+                
+                if myHrp then
+                    local minDist = (centers[1] - myHrp.Position).Magnitude
+                    for i = 2, #centers do
+                        local dist = (centers[i] - myHrp.Position).Magnitude
+                        if dist < minDist then
+                            minDist = dist
+                            closestCenter = centers[i]
+                        end
+                    end
+                end
+                
+                teleportAbove(closestCenter, track)
             end
         end
     end)
