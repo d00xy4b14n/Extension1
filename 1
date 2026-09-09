@@ -200,7 +200,21 @@ local function getDenseClusterCenter()
             end
         end
 
+        -- Eğer grupta 10'dan fazla kişi varsa, merkeze en yakın 10 kişiyi filtreler
+        if #cluster > 10 then
+            table.sort(cluster, function(a, b)
+                return (a - pos1).Magnitude < (b - pos1).Magnitude
+            end)
+            local trimmedCluster = {}
+            for k = 1, 10 do
+                table.insert(trimmedCluster, cluster[k])
+            end
+            cluster = trimmedCluster
+        end
+
         local count = #cluster
+
+        -- 2 ile 10 kişi arasındaki en yüksek sayıya sahip grubu seçer
         if count >= 2 and count <= 10 and count > maxCount then
             maxCount = count
             local sum = Vector3.zero
@@ -208,23 +222,6 @@ local function getDenseClusterCenter()
                 sum = sum + p
             end
             bestCenter = sum / count
-        end
-    end
-
-    if not bestCenter and #positions >= 3 then
-        for i, pos1 in ipairs(positions) do
-            local cluster = {pos1}
-            for j, pos2 in ipairs(positions) do
-                if i ~= j and math.abs(pos1.X - pos2.X) <= 10 and math.abs(pos1.Z - pos2.Z) <= 10 then
-                    table.insert(cluster, pos2)
-                end
-            end
-            if #cluster >= 3 then
-                local sum = Vector3.zero
-                for _, p in ipairs(cluster) do sum = sum + p end
-                bestCenter = sum / #cluster
-                break
-            end
         end
     end
 
