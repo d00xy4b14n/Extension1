@@ -10,6 +10,16 @@ local autoPosEnabled = false
 local LAYERS = {27, -6, -60}
 local Y_TOLERANCE = 15 
 
+local areaBox = Instance.new("BoxHandleAdornment")
+areaBox.Name = "AutoPosAreaBox"
+areaBox.Size = Vector3.new(20, 0.1, 20)
+areaBox.Color3 = Color3.fromRGB(255, 0, 0)
+areaBox.Transparency = 0.6
+areaBox.AlwaysOnTop = true
+areaBox.Adornee = workspace.Terrain
+areaBox.Visible = false
+areaBox.Parent = workspace
+
 local function getJujutsuFrame()
     for _, gui in ipairs(PlayerGui:GetChildren()) do
         if gui:IsA("ScreenGui") then
@@ -46,7 +56,6 @@ end
 local MainFont = Font.new("rbxassetid://12187375716", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 mainFrame.ClipsDescendants = false
 
--- Ana Buton
 local autoPosButton = Instance.new("TextButton")
 autoPosButton.Name = "Extension"
 autoPosButton.Parent = mainFrame
@@ -106,6 +115,7 @@ local function setToggleState(state)
     else
         TweenService:Create(toggleTrack, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(60, 60, 60)}):Play()
         TweenService:Create(toggleKnob, TweenInfo.new(0.15), {Position = UDim2.new(0, 2, 0.5, -6)}):Play()
+        areaBox.Visible = false
     end
 end
 
@@ -163,16 +173,27 @@ local function getAllEntityPositions()
 
     local myLayer = getClosestLayer(myHrp.Position.Y)
 
-    for _, descendant in ipairs(workspace:GetDescendants()) do
-        if descendant:IsA("Humanoid") and descendant.Health > 0 then
-            local char = descendant.Parent
-            if char and char ~= myChar then
-                local hrp = char:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    local targetLayer = getClosestLayer(hrp.Position.Y)
-                    if targetLayer == myLayer and math.abs(hrp.Position.Y - myLayer) <= Y_TOLERANCE then
-                        table.insert(entityPositions, hrp.Position)
-                    end
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+            local hum = player.Character:FindFirstChildOfClass("Humanoid")
+            if hrp and hum and hum.Health > 0 then
+                local targetLayer = getClosestLayer(hrp.Position.Y)
+                if targetLayer == myLayer and math.abs(hrp.Position.Y - myLayer) <= Y_TOLERANCE then
+                    table.insert(entityPositions, hrp.Position)
+                end
+            end
+        end
+    end
+
+    for _, child in ipairs(workspace:GetChildren()) do
+        if child:IsA("Model") and child ~= myChar and not Players:GetPlayerFromCharacter(child) then
+            local hum = child:FindFirstChildOfClass("Humanoid")
+            local hrp = child:FindFirstChild("HumanoidRootPart")
+            if hum and hum.Health > 0 and hrp then
+                local targetLayer = getClosestLayer(hrp.Position.Y)
+                if targetLayer == myLayer and math.abs(hrp.Position.Y - myLayer) <= Y_TOLERANCE then
+                    table.insert(entityPositions, hrp.Position)
                 end
             end
         end
@@ -181,9 +202,9 @@ local function getAllEntityPositions()
     return entityPositions
 end
 
-local function getDenseClusterCenter()
+local function getDenseClusterData()
     local positions = getAllEntityPositions()
-    local bestCenter = nil
+    local bestCluster = {}
     local maxCount = 0
 
     for i, pos1 in ipairs(positions) do
@@ -200,7 +221,6 @@ local function getDenseClusterCenter()
             end
         end
 
-        -- Eğer grupta 10'dan fazla kişi varsa, merkeze en yakın 10 kişiyi filtreler
         if #cluster > 10 then
             table.sort(cluster, function(a, b)
                 return (a - pos1).Magnitude < (b - pos1).Magnitude
@@ -214,19 +234,40 @@ local function getDenseClusterCenter()
 
         local count = #cluster
 
-        -- 2 ile 10 kişi arasındaki en yüksek sayıya sahip grubu seçer
         if count >= 2 and count <= 10 and count > maxCount then
             maxCount = count
-            local sum = Vector3.zero
-            for _, p in ipairs(cluster) do
-                sum = sum + p
-            end
-            bestCenter = sum / count
+            bestCluster = cluster
         end
     end
 
-    return bestCenter
+    local center = nil
+    if #bestCluster > 0 then
+        local sum = Vector3.zero
+        for _, p in ipairs(bestCluster) do
+            sum = sum + p
+        end
+        center = sum / #bestCluster
+    end
+
+    return bestCluster, center
 end
+
+task.spawn(function()
+    while true do
+        if autoPosEnabled then
+            local _, center = getDenseClusterData()
+            if center then
+                areaBox.CFrame = CFrame.new(center)
+                areaBox.Visible = true
+            else
+                areaBox.Visible = false
+            end
+        else
+            areaBox.Visible = false
+        end
+        task.wait(0.05)
+    end
+end)
 
 local function teleportAbove(targetPos, track)
     local char = LocalPlayer.Character
@@ -237,7 +278,6 @@ local function teleportAbove(targetPos, track)
     local destinationCFrame = CFrame.new(destination)
     
     local distance = (destination - hrp.Position).Magnitude
-
     local dynamicSpeed = math.clamp(1.0 + (distance / 120), 1.2, 3.0)
 
     local tweenInfo = TweenInfo.new(dynamicSpeed, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
@@ -269,7 +309,7 @@ local function listenToAnimation(char)
         if not autoPosEnabled then return end
 
         if track.Animation and string.find(track.Animation.AnimationId, TARGET_ANIM_ID) then
-            local clusterCenter = getDenseClusterCenter()
+            local _, clusterCenter = getDenseClusterData()
             
             if clusterCenter then
                 teleportAbove(clusterCenter, track)
