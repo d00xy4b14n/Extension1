@@ -5,12 +5,143 @@ local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 local TARGET_ANIM_ID = "71262912144187"
-local autoPosEnabled = false
-
 local LAYERS = {27, -6, -60}
-local Y_TOLERANCE = 15 
+local Y_TOLERANCE = 15
 
+local buttonText = "Uro Auto Positioner"
+local baseButtonName = "button"
+
+local autoPosEnabled = false
 local boxPool = {}
+
+local function findExistingButtonTemplate()
+    local getHui = gethui or function() return game:GetService("CoreGui") end
+    local containers = {PlayerGui, getHui()}
+
+    for _, container in ipairs(containers) do
+        for _, gui in ipairs(container:GetChildren()) do
+            if gui:IsA("ScreenGui") and not gui.Name:lower():find("dex") then
+                for _, descendant in ipairs(gui:GetDescendants()) do
+                    if descendant:IsA("ScrollingFrame") then
+                        for _, child in ipairs(descendant:GetChildren()) do
+                            if child.Name:sub(1, #baseButtonName) == baseButtonName and child:FindFirstChild("ToggleTrack") then
+                                return descendant, child
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return nil, nil
+end
+
+local function findTargetByCanvasSize()
+    while true do
+        local getHui = gethui or function() return game:GetService("CoreGui") end
+        local containers = {PlayerGui, getHui()}
+
+        for _, container in ipairs(containers) do
+            for _, gui in ipairs(container:GetChildren()) do
+                if gui:IsA("ScreenGui") and not gui.Name:lower():find("dex") then
+                    for _, descendant in ipairs(gui:GetDescendants()) do
+                        if descendant:IsA("ScrollingFrame") and descendant.CanvasSize.Y.Offset == 674 then
+                            return descendant
+                        end
+                    end
+                end
+            end
+        end
+
+        task.wait(0.5)
+    end
+end
+
+local scrollingFrame, templateButton = findExistingButtonTemplate()
+
+if not scrollingFrame then
+    scrollingFrame = findTargetByCanvasSize()
+end
+
+local function getUniqueName()
+    local name = baseButtonName
+    local n = 0
+    while scrollingFrame:FindFirstChild(name) do
+        n = n + 1
+        name = baseButtonName .. n
+    end
+    return name
+end
+
+local MainFont = Font.new("rbxassetid://12187375716", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+
+local optionFrame
+
+if templateButton then
+    optionFrame = templateButton:Clone()
+    optionFrame.Name = getUniqueName() 
+    optionFrame.Parent = scrollingFrame
+
+    local newTitleLabel = optionFrame:FindFirstChild("Title")
+    if newTitleLabel then
+        newTitleLabel.Text = buttonText
+    end
+else
+    optionFrame = Instance.new("Frame")
+    optionFrame.Name = getUniqueName()
+    optionFrame.Size = UDim2.new(0.98, 0, 0, 37)
+    optionFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    optionFrame.BorderSizePixel = 0
+    optionFrame.Parent = scrollingFrame
+
+    local frameCorner = Instance.new("UICorner")
+    frameCorner.CornerRadius = UDim.new(0, 8)
+    frameCorner.Parent = optionFrame
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "Title"
+    titleLabel.Size = UDim2.new(1, 0, 1, 0)
+    titleLabel.Position = UDim2.new(0, 0, 0, 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = buttonText
+    titleLabel.TextColor3 = Color3.fromRGB(235, 235, 235)
+    titleLabel.TextSize = 18
+    titleLabel.FontFace = MainFont
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Center
+    titleLabel.Parent = optionFrame
+
+    local toggleTrack = Instance.new("TextButton")
+    toggleTrack.Name = "ToggleTrack"
+    toggleTrack.Text = ""
+    toggleTrack.AutoButtonColor = false
+    toggleTrack.Size = UDim2.new(0, 42, 0, 25)
+    toggleTrack.AnchorPoint = Vector2.new(1, 0.5)
+    toggleTrack.Position = UDim2.new(1, -12, 0.5, 0)
+    toggleTrack.BackgroundColor3 = Color3.fromRGB(75, 75, 75)
+    toggleTrack.BorderSizePixel = 0
+    toggleTrack.Parent = optionFrame
+
+    local trackCorner = Instance.new("UICorner")
+    trackCorner.CornerRadius = UDim.new(1, 0)
+    trackCorner.Parent = toggleTrack
+
+    local toggleKnob = Instance.new("Frame")
+    toggleKnob.Name = "ToggleKnob"
+    toggleKnob.Size = UDim2.new(0, 20, 0, 20)
+    toggleKnob.AnchorPoint = Vector2.new(0, 0.5000525)
+    toggleKnob.Position = UDim2.new(0, 3, 0.5000525, 0)
+    toggleKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    toggleKnob.BorderSizePixel = 0
+    toggleKnob.Parent = toggleTrack
+
+    local knobCorner = Instance.new("UICorner")
+    knobCorner.CornerRadius = UDim.new(1, 0)
+    knobCorner.Parent = toggleKnob
+end
+
+local toggleTrack = optionFrame:FindFirstChild("ToggleTrack")
+local toggleKnob = toggleTrack and toggleTrack:FindFirstChild("ToggleKnob")
 
 local function getAreaBox(index)
     if not boxPool[index] then
@@ -32,138 +163,6 @@ local function hideAllBoxes()
     for _, box in ipairs(boxPool) do
         box.Visible = false
     end
-end
-
-local function getJujutsuFrame()
-    for _, gui in ipairs(PlayerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") then
-            local frame = gui:FindFirstChild("Frame")
-            if frame and frame:IsA("Frame") then
-                return frame
-            end
-        end
-    end
-    
-    local getHui = gethui or function() return game:GetService("CoreGui") end
-    for _, gui in ipairs(getHui():GetChildren()) do
-        if gui:IsA("ScreenGui") and not gui.Name:lower():find("dex") then
-            local frame = gui:FindFirstChild("Frame")
-            if frame and frame:IsA("Frame") then
-                return frame
-            end
-        end
-    end
-    return nil
-end
-
-local mainFrame = getJujutsuFrame()
-
-if not mainFrame then
-    warn("big boy pls rejoin.")
-    return
-end
-
-if mainFrame:FindFirstChild("Extension") then
-    mainFrame.Extension:Destroy()
-end
-
-local MainFont = Font.new("rbxassetid://12187375716", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-mainFrame.ClipsDescendants = false
-
-local autoPosButton = Instance.new("TextButton")
-autoPosButton.Name = "Extension"
-autoPosButton.Parent = mainFrame
-autoPosButton.Size = UDim2.new(0, 135, 0, 32)
-autoPosButton.Position = UDim2.new(1, 8, 0, 0)
-autoPosButton.BackgroundColor3 = Color3.fromRGB(38, 38, 38)
-autoPosButton.BorderSizePixel = 0
-autoPosButton.Text = "Uro Auto Pos"
-autoPosButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-autoPosButton.TextSize = 13
-autoPosButton.FontFace = MainFont
-autoPosButton.TextXAlignment = Enum.TextXAlignment.Left
-
-local uiPadding = Instance.new("UIPadding")
-uiPadding.PaddingLeft = UDim.new(0, 10)
-uiPadding.Parent = autoPosButton
-
-local uiCorner = Instance.new("UICorner")
-uiCorner.CornerRadius = UDim.new(0, 6)
-uiCorner.Parent = autoPosButton
-
-local uiStroke = Instance.new("UIStroke")
-uiStroke.Color = Color3.fromRGB(60, 60, 60)
-uiStroke.Thickness = 1
-uiStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-uiStroke.Parent = autoPosButton
-
-local toggleTrack = Instance.new("Frame")
-toggleTrack.Name = "ToggleTrack"
-toggleTrack.Size = UDim2.new(0, 28, 0, 16)
-toggleTrack.Position = UDim2.new(1, -34, 0.5, -8)
-toggleTrack.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-toggleTrack.BorderSizePixel = 0
-toggleTrack.Parent = autoPosButton
-
-local trackCorner = Instance.new("UICorner")
-trackCorner.CornerRadius = UDim.new(1, 0)
-trackCorner.Parent = toggleTrack
-
-local toggleKnob = Instance.new("Frame")
-toggleKnob.Name = "ToggleKnob"
-toggleKnob.Size = UDim2.new(0, 12, 0, 12)
-toggleKnob.Position = UDim2.new(0, 2, 0.5, -6)
-toggleKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-toggleKnob.BorderSizePixel = 0
-toggleKnob.Parent = toggleTrack
-
-local knobCorner = Instance.new("UICorner")
-knobCorner.CornerRadius = UDim.new(1, 0)
-knobCorner.Parent = toggleKnob
-
-local function setToggleState(state)
-    autoPosEnabled = state
-    if autoPosEnabled then
-        TweenService:Create(toggleTrack, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(16, 185, 129)}):Play()
-        TweenService:Create(toggleKnob, TweenInfo.new(0.15), {Position = UDim2.new(1, -14, 0.5, -6)}):Play()
-    else
-        TweenService:Create(toggleTrack, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(60, 60, 60)}):Play()
-        TweenService:Create(toggleKnob, TweenInfo.new(0.15), {Position = UDim2.new(0, 2, 0.5, -6)}):Play()
-        hideAllBoxes()
-    end
-end
-
-autoPosButton.MouseButton1Click:Connect(function()
-    setToggleState(not autoPosEnabled)
-end)
-
-local titleBar = mainFrame:FindFirstChild("TitleBar")
-local minimizeButton = nil
-
-if titleBar then
-    for _, child in ipairs(titleBar:GetChildren()) do
-        if child:IsA("TextButton") and (child.Text == "-" or child.Text == "+") then
-            minimizeButton = child
-            break
-        end
-    end
-end
-
-local function updateButtonVisibility()
-    if minimizeButton and minimizeButton.Text == "+" then
-        autoPosButton.Visible = false
-    else
-        autoPosButton.Visible = true
-    end
-end
-
-if minimizeButton then
-    minimizeButton.MouseButton1Click:Connect(function()
-        task.wait(0.02)
-        updateButtonVisibility()
-    end)
-    
-    minimizeButton:GetPropertyChangedSignal("Text"):Connect(updateButtonVisibility)
 end
 
 local function getClosestLayer(y)
@@ -248,7 +247,7 @@ local function getAllClustersData()
 
         local count = #cluster
 
-        if count >= 3 and count <= 10 then
+        if count >= 2 and count <= 10 then
             local sum = Vector3.zero
             for _, p in ipairs(cluster) do
                 sum = sum + p
@@ -272,30 +271,6 @@ local function getAllClustersData()
 
     return validClusters, validCenters
 end
-
-task.spawn(function()
-    while true do
-        if autoPosEnabled then
-            local _, centers = getAllClustersData()
-            
-            if #centers > 0 then
-                for i, center in ipairs(centers) do
-                    local box = getAreaBox(i)
-                    box.CFrame = CFrame.new(center)
-                    box.Visible = true
-                end
-                for i = #centers + 1, #boxPool do
-                    boxPool[i].Visible = false
-                end
-            else
-                hideAllBoxes()
-            end
-        else
-            hideAllBoxes()
-        end
-        task.wait(0.05)
-    end
-end)
 
 local function teleportAbove(targetPos, track)
     local char = LocalPlayer.Character
@@ -364,3 +339,53 @@ if LocalPlayer.Character then
     listenToAnimation(LocalPlayer.Character)
 end
 LocalPlayer.CharacterAdded:Connect(listenToAnimation)
+
+task.spawn(function()
+    while true do
+        if autoPosEnabled then
+            local _, centers = getAllClustersData()
+            
+            if #centers > 0 then
+                for i, center in ipairs(centers) do
+                    local box = getAreaBox(i)
+                    box.CFrame = CFrame.new(center)
+                    box.Visible = true
+                end
+                for i = #centers + 1, #boxPool do
+                    boxPool[i].Visible = false
+                end
+            else
+                hideAllBoxes()
+            end
+        else
+            hideAllBoxes()
+        end
+        task.wait(0.05)
+    end
+end)
+
+local function setToggleState(state)
+    autoPosEnabled = state
+
+    if autoPosEnabled then
+        TweenService:Create(toggleTrack, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(0, 185, 140)}):Play()
+        TweenService:Create(toggleKnob, TweenInfo.new(0.15), {Position = UDim2.new(0.905, -19, 0.5, 0)}):Play()
+    else
+        TweenService:Create(toggleTrack, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(75, 75, 75)}):Play()
+        TweenService:Create(toggleKnob, TweenInfo.new(0.15), {Position = UDim2.new(0, 3, 0.5, 0)}):Play()
+        hideAllBoxes()
+    end
+end
+
+optionFrame.AncestryChanged:Connect(function(_, parent)
+    if not parent then
+        autoPosEnabled = false
+        hideAllBoxes()
+    end
+end)
+
+if toggleTrack then
+    toggleTrack.MouseButton1Click:Connect(function()
+        setToggleState(not autoPosEnabled)
+    end)
+end
